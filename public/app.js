@@ -355,17 +355,27 @@ function renderMapMarkers(recs) {
   if (map.getLayer('unclustered-point')) map.removeLayer('unclustered-point');
   if (map.getSource('recordings')) map.removeSource('recordings');
 
-  const features = recs
-    .filter(r => r.lat != null && r.lng != null)
-    .map((r, i) => ({
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [r.lng, r.lat] },
-      properties: {
-        idx: i,
-        color: getRecordingColor(r),
-        title: r.title || 'Untitled',
-      }
-    }));
+  const geoRecs = recs.filter(r => r.lat != null && r.lng != null);
+  const features = geoRecs.map((r, i) => ({
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: [r.lng, r.lat] },
+    properties: {
+      idx: i,
+      color: getRecordingColor(r),
+      title: r.title || 'Untitled',
+    }
+  }));
+
+  // Fit map to show all markers
+  if (geoRecs.length > 0) {
+    const lngs = geoRecs.map(r => r.lng);
+    const lats = geoRecs.map(r => r.lat);
+    const bounds = [
+      [Math.min(...lngs) - 2, Math.min(...lats) - 2],
+      [Math.max(...lngs) + 2, Math.max(...lats) + 2],
+    ];
+    map.fitBounds(bounds, { padding: 50, maxZoom: 8 });
+  }
 
   map.addSource('recordings', {
     type: 'geojson',
