@@ -2,6 +2,11 @@ name = "field-recordings-api"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
 
+[assets]
+directory = "public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
 [vars]
 ENVIRONMENT = "development"
 

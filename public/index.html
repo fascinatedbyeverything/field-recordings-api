@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Field Recordings</title>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Map -->
+  <div id="map"></div>
+
+  <!-- Toggle button for side panel (mobile + desktop) -->
+  <button id="panel-toggle" aria-label="Toggle search panel">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+  </button>
+
+  <!-- Side Panel -->
+  <aside id="panel" class="panel-open">
+    <div id="panel-header">
+      <h1>Field Recordings</h1>
+      <button id="panel-close" aria-label="Close panel">&times;</button>
+    </div>
+
+    <div id="panel-content">
+      <!-- Location Filters -->
+      <section class="filter-group">
+        <h2>Location</h2>
+        <div class="input-row">
+          <input type="text" id="location-input" placeholder="Search place name..." autocomplete="off">
+          <button id="geocode-btn" title="Search location">Go</button>
+        </div>
+        <div class="slider-row">
+          <label for="radius-slider">Radius: <span id="radius-value">100</span> km</label>
+          <input type="range" id="radius-slider" min="10" max="500" value="100" step="10">
+        </div>
+        <p class="hint" id="location-hint">Or click the map to set a pin</p>
+      </section>
+
+      <!-- Time Filters -->
+      <section class="filter-group">
+        <h2>Time</h2>
+        <div class="input-row year-row">
+          <input type="number" id="year-from" placeholder="From year" min="1900" max="2030">
+          <span class="separator">&ndash;</span>
+          <input type="number" id="year-to" placeholder="To year" min="1900" max="2030">
+        </div>
+        <div class="chip-group" id="time-chips">
+          <button class="chip" data-time="dawn">Dawn</button>
+          <button class="chip" data-time="day">Day</button>
+          <button class="chip" data-time="dusk">Dusk</button>
+          <button class="chip" data-time="night">Night</button>
+        </div>
+      </section>
+
+      <!-- Type Filters -->
+      <section class="filter-group">
+        <h2>Type</h2>
+        <div class="chip-group" id="type-chips">
+          <button class="chip chip-birds" data-type="birds">Birds</button>
+          <button class="chip chip-mammals" data-type="mammals">Mammals</button>
+          <button class="chip chip-amphibians" data-type="amphibians">Amphibians</button>
+          <button class="chip chip-insects" data-type="insects">Insects</button>
+          <button class="chip chip-ocean" data-type="ocean">Ocean</button>
+          <button class="chip chip-forest" data-type="forest">Forest</button>
+          <button class="chip chip-weather" data-type="weather">Weather</button>
+          <button class="chip chip-urban" data-type="urban">Urban</button>
+          <button class="chip chip-cultural" data-type="cultural">Cultural</button>
+        </div>
+      </section>
+
+      <!-- Search Button -->
+      <button id="search-btn">Search</button>
+
+      <!-- Results -->
+      <section id="results-section">
+        <div id="results-header"></div>
+        <div id="results-loading" class="hidden">
+          <div class="spinner"></div>
+          <span>Searching...</span>
+        </div>
+        <div id="results-error" class="hidden"></div>
+        <div id="results-list"></div>
+      </section>
+    </div>
+  </aside>
+
+  <!-- Mini Player -->
+  <div id="player" class="hidden">
+    <div id="player-info">
+      <div id="player-title">No track loaded</div>
+      <div id="player-provider"></div>
+    </div>
+    <div id="player-controls">
+      <button id="play-pause-btn" aria-label="Play/Pause">
+        <svg id="play-icon" width="28" height="28" viewBox="0 0 24 24" fill="white"><polygon points="6,3 20,12 6,21"/></svg>
+        <svg id="pause-icon" class="hidden" width="28" height="28" viewBox="0 0 24 24" fill="white"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg>
+      </button>
+    </div>
+    <div id="player-progress-wrap">
+      <input type="range" id="player-progress" min="0" max="100" value="0" step="0.1">
+    </div>
+    <div id="player-time">
+      <span id="player-current">0:00</span>
+      <span id="player-duration">0:00</span>
+    </div>
+  </div>
+
+  <audio id="audio" preload="none"></audio>
+
+  <script src="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
