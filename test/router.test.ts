@@ -10,11 +10,14 @@ describe('Router', () => {
     get: vi.fn().mockResolvedValue(null),
     put: vi.fn().mockResolvedValue(undefined),
   };
-  const mockEnv = { CACHE: mockR2 as any, FREESOUND_API_KEY: 'test', XENOCANTO_API_KEY: 'test' };
+  const mockAssets = {
+    fetch: vi.fn().mockResolvedValue(new Response('<html></html>', { status: 200, headers: { 'Content-Type': 'text/html' } })),
+  };
+  const mockEnv = { CACHE: mockR2 as any, ASSETS: mockAssets, FREESOUND_API_KEY: 'test', XENOCANTO_API_KEY: 'test' };
 
-  it('GET / returns API info', async () => {
+  it('GET /api returns API info', async () => {
     const router = createRouter();
-    const res = await router.fetch(new Request('http://localhost/'), mockEnv);
+    const res = await router.fetch(new Request('http://localhost/api'), mockEnv);
     expect(res.status).toBe(200);
     const body = await res.json() as any;
     expect(body.name).toBe('Field Recordings API');
@@ -49,9 +52,10 @@ describe('Router', () => {
     expect(res.status).toBe(404);
   });
 
-  it('returns 404 for unknown routes', async () => {
+  it('GET / serves static assets', async () => {
     const router = createRouter();
-    const res = await router.fetch(new Request('http://localhost/nope'), mockEnv);
-    expect(res.status).toBe(404);
+    const res = await router.fetch(new Request('http://localhost/'), mockEnv);
+    expect(res.status).toBe(200);
+    expect(mockAssets.fetch).toHaveBeenCalled();
   });
 });

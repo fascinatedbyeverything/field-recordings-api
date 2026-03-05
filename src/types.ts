@@ -43,6 +43,7 @@ export interface Provider {
 
 export interface Env {
   CACHE: R2Bucket;
+  ASSETS: { fetch: (request: Request) => Promise<Response> };
   FREESOUND_API_KEY: string;
   XENOCANTO_API_KEY: string;
 }

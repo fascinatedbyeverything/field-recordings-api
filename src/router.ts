@@ -29,7 +29,7 @@ export function createRouter() {
     catch: () => error(500, 'Internal Server Error'),
   });
 
-  router.get('/', () =>
+  router.get('/api', () =>
     json({
       name: 'Field Recordings API',
       version: '0.1.0',
@@ -101,7 +101,7 @@ export function createRouter() {
     return streamRecording(provider, id, rangeHeader);
   });
 
-  router.all('*', () => error(404, 'Not found'));
+  router.all('*', (request: Request, env: Env) => env.ASSETS.fetch(request));
 
   return router;
 }
