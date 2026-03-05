@@ -28,9 +28,30 @@ export async function searchAll(
     }
   }
 
+  let filtered = recordings;
+
+  // Filter by minimum duration
+  if (query.min_duration) {
+    filtered = filtered.filter(
+      (r) => r.duration_sec !== null && r.duration_sec >= query.min_duration!,
+    );
+  }
+
+  // Sort: longest first by default, or by date
+  if (query.sort === 'date') {
+    filtered.sort((a, b) => {
+      if (!a.recorded_at) return 1;
+      if (!b.recorded_at) return -1;
+      return b.recorded_at.localeCompare(a.recorded_at);
+    });
+  } else {
+    // Default: longest recordings first (ambient-friendly)
+    filtered.sort((a, b) => (b.duration_sec ?? 0) - (a.duration_sec ?? 0));
+  }
+
   return {
-    recordings,
-    total: recordings.length,
+    recordings: filtered,
+    total: filtered.length,
     page: query.page ?? 1,
     providers_queried: queried,
     providers_failed: failed,

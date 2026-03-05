@@ -74,6 +74,8 @@ export function createRouter() {
       provider: url.searchParams.get('provider') ?? undefined,
       page: url.searchParams.has('page') ? Number(url.searchParams.get('page')) : undefined,
       per_page: url.searchParams.has('per_page') ? Number(url.searchParams.get('per_page')) : undefined,
+      min_duration: url.searchParams.has('min_duration') ? Number(url.searchParams.get('min_duration')) : undefined,
+      sort: (url.searchParams.get('sort') as 'duration' | 'date') ?? undefined,
     };
 
     const cache = new CacheLayer(env.CACHE);

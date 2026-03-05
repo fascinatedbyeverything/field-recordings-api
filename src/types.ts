@@ -23,6 +23,8 @@ export interface UnifiedQuery {
   provider?: string;
   page?: number;
   per_page?: number;
+  min_duration?: number;
+  sort?: 'duration' | 'date';
 }
 
 export interface SearchResult {

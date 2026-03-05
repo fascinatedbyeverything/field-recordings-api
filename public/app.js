@@ -25,6 +25,7 @@ let map;
 let searchLat = null;
 let searchLng = null;
 let searchRadius = 100;
+let minDuration = 60; // default 1+ min for ambient recordings
 let recordings = [];
 let currentRecording = null;
 let radiusCircle = null;   // GeoJSON source ID
@@ -81,6 +82,15 @@ $$('#type-chips .chip').forEach(chip => {
 
 $$('#time-chips .chip').forEach(chip => {
   chip.addEventListener('click', () => chip.classList.toggle('active'));
+});
+
+// Duration chips — single select (radio behavior)
+$$('#duration-chips .chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    $$('#duration-chips .chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    minDuration = parseInt(chip.dataset.duration, 10);
+  });
 });
 
 // ===== Radius slider =====
@@ -188,16 +198,33 @@ function onMapClick(e) {
 async function doSearch() {
   const params = new URLSearchParams();
 
-  // Types
+  // Build q from type chips + location text + time of day
   const activeTypes = Array.from($$('#type-chips .chip.active')).map(c => c.dataset.type);
+  const activeTimes = Array.from($$('#time-chips .chip.active')).map(c => c.dataset.time);
+  const locationText = locationInput.value.trim();
+
+  // Combine into a search query
+  const qParts = [];
+  if (activeTypes.length) qParts.push(...activeTypes);
+  if (activeTimes.length) qParts.push(...activeTimes);
+  if (locationText && searchLat === null) qParts.push(locationText); // text-only search
+  if (qParts.length) params.set('q', qParts.join(' '));
+
+  // Types
   if (activeTypes.length) params.set('type', activeTypes.join(','));
 
-  // Location
+  // Location (geocoded)
   if (searchLat !== null) {
     params.set('lat', searchLat.toFixed(5));
     params.set('lng', searchLng.toFixed(5));
     params.set('radius', searchRadius);
   }
+
+  // Duration filter
+  if (minDuration > 0) params.set('min_duration', minDuration);
+
+  // Sort longest first for ambient listening
+  params.set('sort', 'duration');
 
   // Per page
   params.set('per_page', '50');
