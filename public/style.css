@@ -161,8 +161,18 @@ html, body {
   transition: border-color 0.2s;
 }
 
-.input-row input[type="text"]:focus {
+.input-row input[type="text"]:focus,
+#search-input:focus {
   border-color: var(--primary);
+}
+
+#search-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px solid var(--card-border);
+  border-radius: 8px;
+  font-size: 1rem;
+  box-sizing: border-box;
 }
 
 .input-row button,
