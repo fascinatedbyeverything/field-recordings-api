@@ -304,7 +304,7 @@ function renderResults(recs) {
 
       // Fly to on map
       if (rec.lat != null && rec.lng != null) {
-        map.flyTo({ center: [rec.lng, rec.lat], zoom: 10 });
+        map.flyTo({ center: [rec.lng, rec.lat], zoom: Math.max(map.getZoom(), 5) });
       }
 
       // Play
