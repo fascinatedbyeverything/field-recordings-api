@@ -2,15 +2,21 @@
 const API_BASE = window.location.hostname === 'localhost' ? 'https://field-recordings-api.ashtarchris.workers.dev' : '';
 
 const TYPE_COLORS = {
+  nature: '#22c55e',
   birds: '#16a34a',
   mammals: '#ea580c',
   amphibians: '#0d9488',
   insects: '#7c3aed',
+  fish: '#06b6d4',
   ocean: '#0284c7',
   forest: '#15803d',
+  river: '#0891b2',
+  desert: '#d97706',
   weather: '#6b7280',
   urban: '#71717a',
   cultural: '#a16207',
+  folk: '#b45309',
+  language: '#9333ea',
 };
 const DEFAULT_COLOR = '#ef4444';
 

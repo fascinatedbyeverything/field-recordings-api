@@ -50,9 +50,9 @@ export function createRouter() {
 
   router.get('/categories', () =>
     json([
-      'birds', 'mammals', 'amphibians', 'insects', 'reptiles', 'fish',
-      'weather', 'ocean', 'forest', 'urban', 'river', 'desert',
-      'cultural', 'folk', 'language',
+      'nature', 'birds', 'mammals', 'amphibians', 'insects', 'reptiles', 'fish',
+      'weather', 'ocean', 'forest', 'river', 'desert',
+      'urban', 'cultural', 'folk', 'language',
     ])
   );
 
