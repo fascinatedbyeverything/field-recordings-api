@@ -39,6 +39,7 @@ const $$ = (sel) => document.querySelectorAll(sel);
 const panelEl = $('#panel');
 const panelToggle = $('#panel-toggle');
 const panelClose = $('#panel-close');
+const searchInput = $('#search-input');
 const locationInput = $('#location-input');
 const geocodeBtn = $('#geocode-btn');
 const radiusSlider = $('#radius-slider');
@@ -198,13 +199,15 @@ function onMapClick(e) {
 async function doSearch() {
   const params = new URLSearchParams();
 
-  // Build q from type chips + location text + time of day
+  // Build q from free text + type chips + location text + time of day
+  const freeText = searchInput.value.trim();
   const activeTypes = Array.from($$('#type-chips .chip.active')).map(c => c.dataset.type);
   const activeTimes = Array.from($$('#time-chips .chip.active')).map(c => c.dataset.time);
   const locationText = locationInput.value.trim();
 
   // Combine into a search query
   const qParts = [];
+  if (freeText) qParts.push(freeText);
   if (activeTypes.length) qParts.push(...activeTypes);
   if (activeTimes.length) qParts.push(...activeTimes);
   if (locationText && searchLat === null) qParts.push(locationText); // text-only search
@@ -263,6 +266,9 @@ async function doSearch() {
 }
 
 searchBtn.addEventListener('click', doSearch);
+searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doSearch();
+});
 
 // ===== Render results =====
 function formatDuration(sec) {
