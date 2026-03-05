@@ -3,6 +3,9 @@ import type { Env, Provider, UnifiedQuery } from './types';
 import { XenoCantoProvider } from './providers/xenocanto';
 import { FreesoundProvider } from './providers/freesound';
 import { INaturalistProvider } from './providers/inaturalist';
+import { GBIFProvider } from './providers/gbif';
+import { NPSProvider } from './providers/nps';
+import { LOCProvider } from './providers/loc';
 import { searchAll } from './search';
 import { streamRecording } from './stream';
 import { CacheLayer } from './cache';
@@ -12,6 +15,9 @@ function buildProviders(env: Env): Provider[] {
     new XenoCantoProvider(env.XENOCANTO_API_KEY),
     new FreesoundProvider(env.FREESOUND_API_KEY),
     new INaturalistProvider(),
+    new GBIFProvider(),
+    new NPSProvider(env.CACHE),
+    new LOCProvider(),
   ];
 }
 
@@ -36,6 +42,9 @@ export function createRouter() {
       { name: 'freesound', description: 'Freesound.org community sounds', has_geo: true },
       { name: 'xenocanto', description: 'Xeno-canto bird recordings', has_geo: true },
       { name: 'inaturalist', description: 'iNaturalist citizen science sounds', has_geo: true },
+      { name: 'gbif', description: 'GBIF biodiversity sound records', has_geo: true },
+      { name: 'nps', description: 'US National Park Service natural sounds', has_geo: false },
+      { name: 'loc', description: 'Library of Congress field recordings', has_geo: false },
     ])
   );
 
