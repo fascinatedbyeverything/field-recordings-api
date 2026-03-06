@@ -20,6 +20,76 @@ const TYPE_COLORS = {
 };
 const DEFAULT_COLOR = '#ef4444';
 
+// ===== Location lookup for recordings missing coordinates =====
+const GEO_LOOKUP = {
+  // Continents/regions
+  'africa': [0, 20], 'europe': [48, 10], 'asia': [35, 100], 'australia': [-25, 134],
+  'north america': [40, -100], 'south america': [-15, -60], 'antarctica': [-80, 0],
+  'arctic': [80, 0], 'caribbean': [18, -72], 'mediterranean': [38, 18],
+  'southeast asia': [10, 106], 'central america': [14, -87], 'middle east': [30, 45],
+  'scandinavia': [63, 15], 'pacific': [0, -160], 'atlantic': [30, -40],
+  // Oceans/seas
+  'pacific ocean': [0, -160], 'atlantic ocean': [30, -40], 'indian ocean': [-20, 75],
+  'southern ocean': [-60, 0], 'coral sea': [-18, 155], 'bering sea': [57, -175],
+  'gulf of mexico': [25, -90], 'north sea': [56, 3], 'baltic': [58, 20],
+  'salish sea': [48.5, -123], 'monterey': [36.6, -121.9], 'monterey bay': [36.6, -121.9],
+  // Countries
+  'brazil': [-10, -55], 'usa': [39, -98], 'uk': [54, -2], 'england': [52, -1.5],
+  'france': [46, 2], 'germany': [51, 10], 'india': [22, 78], 'china': [35, 105],
+  'japan': [36, 138], 'mexico': [23, -102], 'canada': [56, -96], 'peru': [-10, -76],
+  'colombia': [4, -74], 'ecuador': [-1, -78], 'costa rica': [10, -84],
+  'kenya': [0, 37], 'tanzania': [-6, 35], 'south africa': [-30, 25],
+  'madagascar': [-19, 47], 'new zealand': [-42, 174], 'indonesia': [-2, 118],
+  'borneo': [1, 115], 'papua': [-5, 141], 'thailand': [15, 101],
+  'vietnam': [16, 108], 'nepal': [28, 84], 'mongolia': [47, 103],
+  'iceland': [65, -18], 'norway': [62, 10], 'sweden': [62, 15],
+  'finland': [64, 26], 'spain': [40, -4], 'italy': [42, 12],
+  'greece': [39, 22], 'turkey': [39, 35], 'russia': [60, 100],
+  'argentina': [-34, -64], 'chile': [-33, -71], 'bolivia': [-17, -65],
+  'venezuela': [7, -66], 'panama': [9, -80], 'guatemala': [15, -90],
+  'cuba': [22, -80], 'hawaii': [20, -156], 'alaska': [64, -153],
+  'congo': [-1, 22], 'cameroon': [6, 12], 'nigeria': [10, 8],
+  'ethiopia': [9, 39], 'uganda': [1, 32], 'rwanda': [-2, 30],
+  'botswana': [-22, 24], 'namibia': [-22, 17], 'mozambique': [-18, 35],
+  'scotland': [56, -4], 'wales': [52, -3.5], 'ireland': [53, -8],
+  // Cities
+  'paris': [48.86, 2.35], 'london': [51.5, -0.12], 'tokyo': [35.68, 139.69],
+  'new york': [40.71, -74.01], 'berlin': [52.52, 13.41], 'mumbai': [19.08, 72.88],
+  'sydney': [-33.87, 151.21], 'rio': [-22.91, -43.17], 'cairo': [30.04, 31.24],
+  'istanbul': [41.01, 28.98], 'beijing': [39.9, 116.4], 'bangkok': [13.76, 100.5],
+  'nairobi': [-1.29, 36.82], 'buenos aires': [-34.6, -58.38], 'moscow': [55.76, 37.62],
+  'rome': [41.9, 12.5], 'amsterdam': [52.37, 4.9], 'singapore': [1.35, 103.82],
+  'hong kong': [22.3, 114.2], 'dubai': [25.2, 55.3], 'seoul': [37.57, 127],
+  // Ecosystems/biomes
+  'amazon': [-3, -60], 'amazon basin': [-3, -60], 'amazonia': [-3, -60],
+  'rainforest': [-3, -60], 'sahara': [23, 10], 'serengeti': [-2.3, 34.8],
+  'savanna': [-2, 34], 'tundra': [68, 80], 'taiga': [60, 90],
+  'himalayas': [28, 85], 'andes': [-15, -72], 'alps': [47, 11],
+  'great barrier reef': [-18, 147], 'galapagos': [-0.7, -90.4],
+  'yellowstone': [44.6, -110.5], 'yosemite': [37.75, -119.6],
+  'everglades': [25.3, -80.9], 'okavango': [-19.5, 22.5],
+  'pantanal': [-17, -57], 'kruger': [-24, 31.5],
+  'masai mara': [-1.5, 35], 'sumatra': [-0.6, 101.5],
+  'appalachian': [37, -81], 'rocky mountains': [43, -110],
+  'great plains': [41, -100], 'outback': [-25, 134],
+  'patagonia': [-47, -70], 'siberia': [60, 100],
+};
+
+function inferLocation(rec) {
+  if (rec.lat != null && rec.lng != null) return rec;
+  const text = [rec.title, ...(rec.tags || []), rec.species || ''].join(' ').toLowerCase();
+  // Try longest keys first for better matching (e.g. "pacific ocean" before "pacific")
+  const keys = Object.keys(GEO_LOOKUP).sort((a, b) => b.length - a.length);
+  for (const key of keys) {
+    if (text.includes(key)) {
+      // Add slight randomness so overlapping points don't stack
+      const jitter = () => (Math.random() - 0.5) * 2;
+      return { ...rec, lat: GEO_LOOKUP[key][0] + jitter(), lng: GEO_LOOKUP[key][1] + jitter(), inferred_geo: true };
+    }
+  }
+  return rec;
+}
+
 // ===== State =====
 let map;
 let searchLat = null;
@@ -242,7 +312,7 @@ async function doSearch() {
     if (!res.ok) throw new Error(`API returned ${res.status}`);
     const data = await res.json();
 
-    recordings = data.recordings || [];
+    recordings = (data.recordings || []).map(inferLocation);
 
     // Header
     let headerText = `<strong>${data.total ?? recordings.length}</strong> results from <strong>${data.providers_queried ?? '?'}</strong> providers`;
