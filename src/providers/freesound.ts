@@ -17,7 +17,7 @@ export class FreesoundProvider extends BaseProvider {
     const params = new URLSearchParams({
       token: this.apiKey,
       fields: 'id,name,tags,license,geotag,duration,created,previews',
-      page_size: String(query.per_page ?? 20),
+      page_size: String(Math.min(query.per_page ?? 50, 150)),
       page: String(query.page ?? 1),
     });
 

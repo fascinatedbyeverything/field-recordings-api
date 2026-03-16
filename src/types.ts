@@ -45,7 +45,22 @@ export interface Provider {
 
 export interface Env {
   CACHE: R2Bucket;
+  UPLOADS: R2Bucket;
   ASSETS: { fetch: (request: Request) => Promise<Response> };
   FREESOUND_API_KEY: string;
   XENOCANTO_API_KEY: string;
+}
+
+export interface UserRecordingMeta {
+  id: string;
+  title: string;
+  lat: number | null;
+  lng: number | null;
+  tags: string[];
+  species: string | null;
+  recorded_at: string | null;
+  uploaded_at: string;
+  duration_sec: number | null;
+  filename: string;
+  notes: string;
 }

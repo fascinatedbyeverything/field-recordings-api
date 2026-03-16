@@ -10,11 +10,19 @@ export class GBIFProvider extends BaseProvider {
   async search(query: UnifiedQuery): Promise<Recording[]> {
     const params = new URLSearchParams({
       mediaType: 'Sound',
-      limit: String(query.per_page ?? 20),
-      offset: String(((query.page ?? 1) - 1) * (query.per_page ?? 20)),
+      limit: String(Math.min(query.per_page ?? 300, 300)),
+      offset: String(((query.page ?? 1) - 1) * (query.per_page ?? 300)),
     });
 
-    if (query.q) params.set('q', query.q);
+    if (query.q) {
+      // Try to resolve as species/taxon for precise results
+      const taxonKey = await this.resolveTaxon(query.q);
+      if (taxonKey) {
+        params.set('taxonKey', String(taxonKey));
+      } else {
+        params.set('q', query.q);
+      }
+    }
 
     if (query.lat !== undefined && query.lng !== undefined) {
       const radius = query.radius_km ?? 50;
@@ -80,6 +88,26 @@ export class GBIFProvider extends BaseProvider {
       stream_url: this.makeStreamUrl(r.key),
       recorded_at: r.eventDate ?? null,
     };
+  }
+
+  private async resolveTaxon(q: string): Promise<number | null> {
+    try {
+      // Try vernacular (common) names first, then scientific
+      for (const qField of ['VERNACULAR', 'SCIENTIFIC']) {
+        const res = await fetch(
+          `https://api.gbif.org/v1/species/search?q=${encodeURIComponent(q)}&qField=${qField}&limit=5`,
+        );
+        if (!res.ok) continue;
+        const data = await res.json() as { results: { nubKey?: number; key?: number; rank?: string }[] };
+        const match = data.results.find((r) =>
+          (r.nubKey || r.key) && ['SPECIES', 'GENUS', 'ORDER', 'FAMILY'].includes(r.rank ?? ''),
+        );
+        if (match) return match.nubKey ?? match.key ?? null;
+      }
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   private normalizeLicense(license: string | undefined): string {

@@ -22,10 +22,32 @@
   <aside id="panel" class="panel-open">
     <div id="panel-header">
       <h1>Field Recordings</h1>
-      <button id="panel-close" aria-label="Close panel">&times;</button>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button id="upload-open" class="btn-upload" title="Upload recording">+</button>
+        <button id="panel-close" aria-label="Close panel">&times;</button>
+      </div>
     </div>
 
     <div id="panel-content">
+      <!-- Curated Scenes -->
+      <section class="filter-group">
+        <h2>Explore</h2>
+        <div class="chip-group" id="scene-chips">
+          <button class="chip scene-chip" data-scene='{"q":"rainforest ambient","min_duration":"300"}'>Amazon Rainforest</button>
+          <button class="chip scene-chip" data-scene='{"q":"ocean waves","min_duration":"300"}'>Ocean Waves</button>
+          <button class="chip scene-chip" data-scene='{"q":"whale song","min_duration":"60"}'>Whale Song</button>
+          <button class="chip scene-chip" data-scene='{"q":"thunderstorm rain","min_duration":"120"}'>Thunderstorm</button>
+          <button class="chip scene-chip" data-scene='{"q":"dawn chorus birds","min_duration":"300"}'>Dawn Chorus</button>
+          <button class="chip scene-chip" data-scene='{"q":"night forest insects","min_duration":"300"}'>Forest at Night</button>
+          <button class="chip scene-chip" data-scene='{"q":"river stream water","min_duration":"120"}'>River &amp; Streams</button>
+          <button class="chip scene-chip" data-scene='{"q":"wind desert","min_duration":"60"}'>Desert Wind</button>
+          <button class="chip scene-chip" data-scene='{"q":"city street urban","min_duration":"120"}'>City Streets</button>
+          <button class="chip scene-chip" data-scene='{"q":"deep ocean underwater","min_duration":"120"}'>Deep Ocean</button>
+          <button class="chip scene-chip" data-scene='{"q":"arctic ice","min_duration":"60"}'>Arctic</button>
+          <button class="chip scene-chip" data-scene='{"q":"campfire crackling fire","min_duration":"120"}'>Campfire</button>
+        </div>
+      </section>
+
       <!-- Search -->
       <section class="filter-group">
         <h2>Search</h2>
@@ -134,6 +156,57 @@
   </div>
 
   <audio id="audio" preload="none"></audio>
+
+  <!-- Upload Modal -->
+  <div id="upload-modal" class="hidden">
+    <div id="upload-backdrop"></div>
+    <div id="upload-form-wrap">
+      <h2>Upload Field Recording</h2>
+      <button id="upload-close" class="overlay-close-btn">&times;</button>
+      <form id="upload-form">
+        <label>Audio file
+          <input type="file" id="upload-file" accept="audio/*" required>
+        </label>
+        <label>Title
+          <input type="text" id="upload-title" placeholder="e.g. Morning birds in backyard">
+        </label>
+        <label>Species (optional)
+          <input type="text" id="upload-species" placeholder="e.g. Northern Cardinal">
+        </label>
+        <label>Tags (comma-separated)
+          <input type="text" id="upload-tags" placeholder="birds, dawn, suburban">
+        </label>
+        <label>Notes
+          <textarea id="upload-notes" rows="2" placeholder="Any additional notes..."></textarea>
+        </label>
+        <label>Date recorded
+          <input type="date" id="upload-date">
+        </label>
+        <div id="upload-location-section">
+          <label>Location <span class="hint">(click map below or use GPS)</span></label>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+            <input type="text" id="upload-lat" placeholder="Lat" style="width:45%">
+            <input type="text" id="upload-lng" placeholder="Lng" style="width:45%">
+            <button type="button" id="upload-gps" class="btn-gps" title="Use GPS">GPS</button>
+          </div>
+          <div id="upload-map" style="width:100%;height:200px;border-radius:8px;"></div>
+        </div>
+        <div id="upload-progress" class="hidden">
+          <div class="spinner"></div>
+          <span>Uploading...</span>
+        </div>
+        <button type="submit" id="upload-submit" class="btn-similar">Upload</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Track Info Overlay -->
+  <div id="track-overlay" class="hidden">
+    <button id="overlay-close">&times;</button>
+    <h2 id="overlay-title"></h2>
+    <div id="overlay-details"></div>
+    <button id="overlay-similar" class="btn-similar">Find Similar</button>
+  </div>
 
   <script src="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.js"></script>
   <script src="app.js"></script>

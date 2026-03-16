@@ -291,6 +291,11 @@ html, body {
   background: var(--primary);
 }
 
+/* Duration chip active */
+.chip[data-duration].active {
+  background: #6366f1;
+}
+
 #search-btn {
   width: 100%;
   padding: 14px;
@@ -556,6 +561,205 @@ html, body {
   background: #1d4ed8;
 }
 
+/* ===== Scene Chips ===== */
+.scene-chip {
+  background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+  border-color: #bae6fd;
+  font-weight: 600;
+}
+.scene-chip:hover {
+  background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+}
+
+/* ===== Track Info Overlay ===== */
+#track-overlay {
+  position: fixed;
+  bottom: calc(var(--player-height) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  padding: 24px;
+  max-width: 480px;
+  width: calc(100% - 32px);
+  z-index: 1200;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+#track-overlay h2 {
+  font-size: 1.2rem;
+  margin: 0 0 12px;
+  padding-right: 32px;
+  color: var(--text);
+}
+
+#overlay-close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
+#overlay-details {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+#overlay-details .detail-label {
+  font-weight: 600;
+  color: var(--text);
+  display: inline-block;
+  min-width: 90px;
+}
+
+#overlay-details .detail-row {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--card-border);
+}
+
+#overlay-details .tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+#overlay-details .tag-pill {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 2px 10px;
+  font-size: 0.8rem;
+}
+
+.btn-similar {
+  margin-top: 16px;
+  width: 100%;
+  padding: 12px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-similar:hover {
+  background: #1d4ed8;
+}
+
+/* ===== Upload Button ===== */
+.btn-upload {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--nature);
+  color: white;
+  font-size: 1.4rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: background 0.15s;
+}
+.btn-upload:hover { background: #16a34a; }
+
+/* ===== Upload Modal ===== */
+#upload-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#upload-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+}
+#upload-form-wrap {
+  position: relative;
+  background: white;
+  border-radius: 16px;
+  padding: 28px;
+  max-width: 480px;
+  width: calc(100% - 32px);
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+}
+#upload-form-wrap h2 {
+  font-size: 1.3rem;
+  margin: 0 0 16px;
+}
+.overlay-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+#upload-form label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+#upload-form input[type="text"],
+#upload-form input[type="date"],
+#upload-form textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid var(--card-border);
+  border-radius: 8px;
+  font-size: 1rem;
+  margin-top: 4px;
+  font-family: inherit;
+}
+#upload-form input[type="file"] {
+  display: block;
+  margin-top: 4px;
+  font-size: 1rem;
+}
+.btn-gps {
+  padding: 8px 12px;
+  border: 2px solid var(--primary);
+  border-radius: 8px;
+  background: white;
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-gps:hover { background: var(--primary); color: white; }
+#upload-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
 /* ===== Utilities ===== */
 .hidden {
   display: none !important;
@@ -566,6 +770,7 @@ html, body {
   :root {
     --panel-width: 100%;
     --player-height: 64px;
+    --font-base: 16px;
   }
 
   #map {
@@ -583,33 +788,98 @@ html, body {
     border-top: 1px solid var(--card-border);
     border-radius: 16px 16px 0 0;
     transform: translateY(0);
-    box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
   }
 
   #panel.panel-closed {
     transform: translateY(100%);
   }
 
+  #panel-header {
+    padding: 12px 16px;
+    position: sticky;
+    top: 0;
+    background: white;
+    z-index: 2;
+    border-radius: 16px 16px 0 0;
+  }
+
+  #panel-header h1 {
+    font-size: 1.2rem;
+  }
+
+  #panel-content {
+    padding: 0 16px 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   #panel-toggle {
     right: 16px;
     bottom: calc(var(--player-height) + 16px);
     top: auto;
+    width: 52px;
+    height: 52px;
+    font-size: 1.4rem;
   }
 
   #panel-toggle.shifted {
     right: 16px;
   }
 
+  .filter-group h2 {
+    font-size: 0.85rem;
+  }
+
+  .chip {
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    min-height: 38px;
+  }
+
+  .chip-group {
+    gap: 6px;
+  }
+
+  .result-card {
+    padding: 12px;
+  }
+
+  #search-btn {
+    padding: 12px;
+    font-size: 1rem;
+    min-height: 48px;
+  }
+
+  #search-input,
+  .input-row input[type="text"] {
+    min-height: 44px;
+    font-size: 1rem;
+  }
+
   #player {
     padding: 0 12px;
-    gap: 10px;
+    gap: 8px;
   }
 
   #player-info {
-    max-width: 140px;
+    max-width: 120px;
+  }
+
+  #player-title {
+    font-size: 0.85rem;
   }
 
   #player-time {
     display: none;
+  }
+
+  #player-seek {
+    flex: 1;
+    min-width: 60px;
+  }
+
+  .year-row input {
+    width: 80px;
   }
 }

@@ -10,7 +10,7 @@ export class INaturalistProvider extends BaseProvider {
   async search(query: UnifiedQuery): Promise<Recording[]> {
     const params = new URLSearchParams({
       sounds: 'true',
-      per_page: String(query.per_page ?? 20),
+      per_page: String(Math.min(query.per_page ?? 200, 200)),
       page: String(query.page ?? 1),
       order_by: 'id',
       order: 'desc',
@@ -25,16 +25,30 @@ export class INaturalistProvider extends BaseProvider {
 
     const url = `${this.baseUrl}?${params}`;
 
-    try {
-      const res = await fetch(url);
-      if (!res.ok) return [];
-      const data = await res.json() as INatResponse;
-      return data.results
-        .filter((obs) => obs.sounds && obs.sounds.length > 0)
-        .map((obs) => this.normalize(obs));
-    } catch {
-      return [];
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await fetch(url, {
+          headers: { 'User-Agent': 'FieldRecordingsAPI/1.0' },
+        });
+        if (res.status === 429) {
+          // Rate limited — wait and retry
+          await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
+        }
+        if (!res.ok) {
+          console.error(`iNaturalist ${res.status}`);
+          return [];
+        }
+        const data = await res.json() as INatResponse;
+        return data.results
+          .filter((obs) => obs.sounds && obs.sounds.length > 0)
+          .map((obs) => this.normalize(obs));
+      } catch (e) {
+        console.error('iNaturalist error:', e);
+        return [];
+      }
     }
+    return [];
   }
 
   async getRecording(id: string): Promise<Recording | null> {

@@ -4,6 +4,12 @@ import { GBIFProvider } from '../../src/providers/gbif';
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
+// Mock response for species resolve (returns no match so it falls back to q param)
+const speciesNoMatch = {
+  ok: true,
+  json: async () => ({ results: [] }),
+};
+
 describe('GBIFProvider', () => {
   const provider = new GBIFProvider();
 
@@ -18,6 +24,8 @@ describe('GBIFProvider', () => {
   });
 
   it('search transforms response to Recording[]', async () => {
+    mockFetch.mockResolvedValueOnce(speciesNoMatch); // vernacular
+    mockFetch.mockResolvedValueOnce(speciesNoMatch); // scientific
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
@@ -59,12 +67,14 @@ describe('GBIFProvider', () => {
   });
 
   it('search includes mediaType=Sound param', async () => {
+    mockFetch.mockResolvedValueOnce(speciesNoMatch); // vernacular
+    mockFetch.mockResolvedValueOnce(speciesNoMatch); // scientific
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ offset: 0, limit: 20, count: 0, results: [] }),
     });
     await provider.search({ q: 'test' });
-    const calledUrl = mockFetch.mock.calls[0][0];
+    const calledUrl = mockFetch.mock.calls[2][0];
     expect(calledUrl).toContain('mediaType=Sound');
   });
 
@@ -82,6 +92,8 @@ describe('GBIFProvider', () => {
   });
 
   it('search filters out occurrences without Sound media', async () => {
+    mockFetch.mockResolvedValueOnce(speciesNoMatch); // vernacular
+    mockFetch.mockResolvedValueOnce(speciesNoMatch); // scientific
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
@@ -107,6 +119,8 @@ describe('GBIFProvider', () => {
   });
 
   it('normalizes license strings correctly', async () => {
+    mockFetch.mockResolvedValueOnce(speciesNoMatch); // vernacular
+    mockFetch.mockResolvedValueOnce(speciesNoMatch); // scientific
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
@@ -182,12 +196,16 @@ describe('GBIFProvider', () => {
   });
 
   it('handles API errors gracefully', async () => {
+    mockFetch.mockResolvedValueOnce(speciesNoMatch); // vernacular
+    mockFetch.mockResolvedValueOnce(speciesNoMatch); // scientific
     mockFetch.mockResolvedValueOnce({ ok: false, status: 500 });
     const results = await provider.search({ q: 'test' });
     expect(results).toEqual([]);
   });
 
   it('handles network errors gracefully', async () => {
+    mockFetch.mockResolvedValueOnce(speciesNoMatch); // vernacular
+    mockFetch.mockResolvedValueOnce(speciesNoMatch); // scientific
     mockFetch.mockRejectedValueOnce(new Error('Network error'));
     const results = await provider.search({ q: 'test' });
     expect(results).toEqual([]);
@@ -226,6 +244,8 @@ describe('GBIFProvider', () => {
   });
 
   it('falls back to genericName when species is missing', async () => {
+    mockFetch.mockResolvedValueOnce(speciesNoMatch); // vernacular
+    mockFetch.mockResolvedValueOnce(speciesNoMatch); // scientific
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({

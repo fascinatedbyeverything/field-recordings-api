@@ -132,6 +132,24 @@ const playerProgress = $('#player-progress');
 const playerCurrent = $('#player-current');
 const playerDuration = $('#player-duration');
 const audioEl = $('#audio');
+const trackOverlay = $('#track-overlay');
+const overlayTitle = $('#overlay-title');
+const overlayDetails = $('#overlay-details');
+const overlayClose = $('#overlay-close');
+const overlaySimilar = $('#overlay-similar');
+
+// ===== Ratings (localStorage) =====
+function getRatings() {
+  try { return JSON.parse(localStorage.getItem('fr-ratings') || '{}'); } catch { return {}; }
+}
+function setRating(id, stars) {
+  const ratings = getRatings();
+  ratings[id] = stars;
+  localStorage.setItem('fr-ratings', JSON.stringify(ratings));
+}
+function getRating(id) {
+  return getRatings()[id] || 0;
+}
 
 // ===== Panel toggle =====
 function togglePanel(open) {
@@ -161,6 +179,27 @@ $$('#duration-chips .chip').forEach(chip => {
     $$('#duration-chips .chip').forEach(c => c.classList.remove('active'));
     chip.classList.add('active');
     minDuration = parseInt(chip.dataset.duration, 10);
+  });
+});
+
+// Scene chips — one-click curated searches
+$$('#scene-chips .scene-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const scene = JSON.parse(chip.dataset.scene);
+    searchInput.value = scene.q || '';
+    // Set min duration chip
+    if (scene.min_duration) {
+      minDuration = parseInt(scene.min_duration, 10);
+      $$('#duration-chips .chip').forEach(c => {
+        c.classList.toggle('active', c.dataset.duration === scene.min_duration);
+      });
+    }
+    // Clear type chips and location
+    $$('#type-chips .chip').forEach(c => c.classList.remove('active'));
+    searchLat = null;
+    searchLng = null;
+    locationInput.value = '';
+    doSearch();
   });
 });
 
@@ -265,28 +304,57 @@ function onMapClick(e) {
   placeLocationMarker();
 }
 
+// ===== Auto-geocode helper =====
+async function tryGeocode(text) {
+  // Skip if it looks like a species/sound query rather than a place
+  const natureWords = ['bird', 'whale', 'rain', 'thunder', 'frog', 'insect', 'cricket',
+    'cicada', 'owl', 'wolf', 'ocean', 'wave', 'wind', 'forest', 'jungle', 'dawn',
+    'chorus', 'song', 'call', 'ambient', 'soundscape', 'nature'];
+  const lower = text.toLowerCase();
+  if (natureWords.some(w => lower.includes(w))) return null;
+
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(text)}&limit=1`;
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const data = await res.json();
+    if (data.length === 0) return null;
+    const place = data[0];
+    // Only accept if it's clearly a place (city, state, country, etc.)
+    const placeTypes = ['city', 'town', 'village', 'county', 'state', 'country',
+      'administrative', 'suburb', 'neighbourhood', 'island', 'region'];
+    const isPlace = placeTypes.some(t => (place.type || '').includes(t) || (place.class || '').includes(t));
+    if (!isPlace && place.importance < 0.4) return null;
+    return {
+      lat: parseFloat(place.lat),
+      lng: parseFloat(place.lon),
+      name: place.display_name.split(',').slice(0, 2).join(',')
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ===== Search =====
 async function doSearch() {
   const params = new URLSearchParams();
 
-  // Build q from free text + type chips + location text + time of day
   const freeText = searchInput.value.trim();
   const activeTypes = Array.from($$('#type-chips .chip.active')).map(c => c.dataset.type);
   const activeTimes = Array.from($$('#time-chips .chip.active')).map(c => c.dataset.time);
   const locationText = locationInput.value.trim();
 
-  // Combine into a search query
+  // Build text query — always include the search text as a species/keyword query
   const qParts = [];
   if (freeText) qParts.push(freeText);
   if (activeTypes.length) qParts.push(...activeTypes);
   if (activeTimes.length) qParts.push(...activeTimes);
-  if (locationText && searchLat === null) qParts.push(locationText); // text-only search
+  if (locationText && searchLat === null) qParts.push(locationText);
   if (qParts.length) params.set('q', qParts.join(' '));
 
   // Types
   if (activeTypes.length) params.set('type', activeTypes.join(','));
 
-  // Location (geocoded)
+  // Location
   if (searchLat !== null) {
     params.set('lat', searchLat.toFixed(5));
     params.set('lng', searchLng.toFixed(5));
@@ -299,8 +367,8 @@ async function doSearch() {
   // Sort longest first for ambient listening
   params.set('sort', 'duration');
 
-  // Per page
-  params.set('per_page', '50');
+  // Per page — request more for geo searches since results come from many providers
+  params.set('per_page', searchLat !== null ? '100' : '50');
 
   resultsLoading.classList.remove('hidden');
   resultsError.classList.add('hidden');
@@ -575,11 +643,67 @@ function playRecording(rec) {
   playerProvider.textContent = rec.provider || '';
 
   audioEl.src = streamUrl;
-  audioEl.play().catch(() => {
-    // autoplay might be blocked, user can click play
-  });
+  audioEl.play().catch(() => {});
   showPlayingState(true);
+  showTrackOverlay(rec);
 }
+
+function showTrackOverlay(rec) {
+  overlayTitle.textContent = rec.title || 'Untitled';
+  const rating = getRating(rec.id);
+
+  let html = '';
+  if (rec.provider) html += `<div class="detail-row"><span class="detail-label">Provider</span> ${esc(rec.provider)}</div>`;
+  if (rec.species) html += `<div class="detail-row"><span class="detail-label">Species</span> ${esc(rec.species)}</div>`;
+  if (rec.duration_sec) html += `<div class="detail-row"><span class="detail-label">Duration</span> ${formatDuration(rec.duration_sec)}</div>`;
+  if (rec.license) html += `<div class="detail-row"><span class="detail-label">License</span> ${esc(rec.license)}</div>`;
+  if (rec.recorded_at) html += `<div class="detail-row"><span class="detail-label">Recorded</span> ${esc(rec.recorded_at.split('T')[0])}</div>`;
+  if (rec.lat != null && rec.lng != null) {
+    html += `<div class="detail-row"><span class="detail-label">Location</span> ${rec.lat.toFixed(2)}, ${rec.lng.toFixed(2)}${rec.inferred_geo ? ' (approx)' : ''}</div>`;
+  }
+  if (rec.tags && rec.tags.length) {
+    html += `<div class="detail-row"><span class="detail-label">Tags</span><div class="tag-list">${rec.tags.map(t => `<span class="tag-pill">${esc(t)}</span>`).join('')}</div></div>`;
+  }
+
+  // Star rating
+  html += `<div class="detail-row"><span class="detail-label">Rating</span><span id="star-rating">`;
+  for (let i = 1; i <= 5; i++) {
+    html += `<span class="star" data-star="${i}" style="cursor:pointer;font-size:1.4rem;color:${i <= rating ? '#f59e0b' : '#d1d5db'}">${i <= rating ? '★' : '☆'}</span>`;
+  }
+  html += `</span></div>`;
+
+  overlayDetails.innerHTML = html;
+  trackOverlay.classList.remove('hidden');
+
+  // Wire star clicks
+  trackOverlay.querySelectorAll('.star').forEach(star => {
+    star.addEventListener('click', () => {
+      const val = parseInt(star.dataset.star, 10);
+      setRating(rec.id, val);
+      trackOverlay.querySelectorAll('.star').forEach((s, idx) => {
+        s.textContent = idx < val ? '★' : '☆';
+        s.style.color = idx < val ? '#f59e0b' : '#d1d5db';
+      });
+      // Update the result card if visible
+      const card = document.querySelector(`.result-card[data-id="${rec.id}"] .card-rating`);
+      if (card) card.textContent = '★'.repeat(val);
+    });
+  });
+}
+
+overlayClose.addEventListener('click', () => trackOverlay.classList.add('hidden'));
+
+overlaySimilar.addEventListener('click', () => {
+  if (!currentRecording) return;
+  // Build a search from the current recording's tags and species
+  const parts = [];
+  if (currentRecording.species) parts.push(currentRecording.species);
+  if (currentRecording.tags) parts.push(...currentRecording.tags.slice(0, 3));
+  if (!parts.length && currentRecording.title) parts.push(currentRecording.title.split(/[—\-()]/)[0].trim());
+  searchInput.value = parts.join(' ');
+  trackOverlay.classList.add('hidden');
+  doSearch();
+});
 
 function showPlayingState(playing) {
   playIcon.classList.toggle('hidden', playing);
@@ -618,9 +742,35 @@ playerProgress.addEventListener('input', () => {
 function initMap() {
   map = new maplibregl.Map({
     container: 'map',
-    style: 'https://demotiles.maplibre.org/style.json',
+    style: {
+      version: 8,
+      glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+      sources: {
+        'esri-satellite': {
+          type: 'raster',
+          tiles: [
+            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+          ],
+          tileSize: 256,
+          attribution: 'Tiles &copy; Esri',
+          maxzoom: 22
+        },
+        'esri-labels': {
+          type: 'raster',
+          tiles: ['https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'],
+          tileSize: 256,
+          maxzoom: 22
+        }
+      },
+      layers: [
+        { id: 'satellite', type: 'raster', source: 'esri-satellite', minzoom: 0, maxzoom: 22 },
+        { id: 'labels', type: 'raster', source: 'esri-labels', minzoom: 3, maxzoom: 22 }
+      ]
+    },
     center: [0, 20],
     zoom: 2,
+    maxZoom: 22,
     attributionControl: true,
   });
 
@@ -636,6 +786,106 @@ function initMap() {
     });
   });
 }
+
+// ===== Upload System =====
+const uploadModal = $('#upload-modal');
+const uploadForm = $('#upload-form');
+const uploadOpen = $('#upload-open');
+const uploadClose = $('#upload-close');
+const uploadBackdrop = $('#upload-backdrop');
+const uploadProgress = $('#upload-progress');
+const uploadSubmit = $('#upload-submit');
+const uploadGps = $('#upload-gps');
+const uploadLatInput = $('#upload-lat');
+const uploadLngInput = $('#upload-lng');
+let uploadMap = null;
+let uploadMarker = null;
+
+uploadOpen.addEventListener('click', () => {
+  uploadModal.classList.remove('hidden');
+  // Init mini map for location picking
+  if (!uploadMap) {
+    setTimeout(() => {
+      uploadMap = new maplibregl.Map({
+        container: 'upload-map',
+        style: {
+          version: 8,
+          sources: {
+            'esri-sat': {
+              type: 'raster',
+              tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+              tileSize: 256, maxzoom: 22
+            }
+          },
+          layers: [{ id: 'sat', type: 'raster', source: 'esri-sat', maxzoom: 22 }]
+        },
+        center: [-98, 39],
+        zoom: 3,
+      });
+      uploadMap.on('click', (e) => {
+        uploadLatInput.value = e.lngLat.lat.toFixed(5);
+        uploadLngInput.value = e.lngLat.lng.toFixed(5);
+        if (uploadMarker) uploadMarker.remove();
+        uploadMarker = new maplibregl.Marker().setLngLat(e.lngLat).addTo(uploadMap);
+      });
+    }, 100);
+  } else {
+    uploadMap.resize();
+  }
+});
+
+uploadClose.addEventListener('click', () => uploadModal.classList.add('hidden'));
+uploadBackdrop.addEventListener('click', () => uploadModal.classList.add('hidden'));
+
+uploadGps.addEventListener('click', () => {
+  if (!navigator.geolocation) return alert('GPS not available');
+  navigator.geolocation.getCurrentPosition((pos) => {
+    uploadLatInput.value = pos.coords.latitude.toFixed(5);
+    uploadLngInput.value = pos.coords.longitude.toFixed(5);
+    if (uploadMap) {
+      const lngLat = [pos.coords.longitude, pos.coords.latitude];
+      uploadMap.flyTo({ center: lngLat, zoom: 14 });
+      if (uploadMarker) uploadMarker.remove();
+      uploadMarker = new maplibregl.Marker().setLngLat(lngLat).addTo(uploadMap);
+    }
+  }, (err) => alert('GPS error: ' + err.message), { enableHighAccuracy: true });
+});
+
+uploadForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const file = $('#upload-file').files[0];
+  if (!file) return;
+
+  uploadProgress.classList.remove('hidden');
+  uploadSubmit.disabled = true;
+
+  const formData = new FormData();
+  formData.append('audio', file);
+  formData.append('title', $('#upload-title').value || file.name);
+  formData.append('species', $('#upload-species').value);
+  formData.append('tags', $('#upload-tags').value);
+  formData.append('notes', $('#upload-notes').value);
+  formData.append('recorded_at', $('#upload-date').value);
+  if (uploadLatInput.value) formData.append('lat', uploadLatInput.value);
+  if (uploadLngInput.value) formData.append('lng', uploadLngInput.value);
+
+  try {
+    const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.ok) {
+      uploadModal.classList.add('hidden');
+      uploadForm.reset();
+      alert('Upload successful! Your recording will appear in search results.');
+    } else {
+      alert('Upload failed: ' + (data.error || 'unknown'));
+    }
+  } catch (err) {
+    alert('Upload failed: ' + err.message);
+  } finally {
+    uploadProgress.classList.add('hidden');
+    uploadSubmit.disabled = false;
+  }
+});
 
 // ===== Boot =====
 initMap();

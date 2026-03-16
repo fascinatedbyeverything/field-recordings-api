@@ -13,3 +13,7 @@ ENVIRONMENT = "development"
 [[r2_buckets]]
 binding = "CACHE"
 bucket_name = "field-recordings-cache"
+
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "field-recordings-uploads"
