@@ -13,7 +13,7 @@ describe('Router', () => {
   const mockAssets = {
     fetch: vi.fn().mockResolvedValue(new Response('<html></html>', { status: 200, headers: { 'Content-Type': 'text/html' } })),
   };
-  const mockEnv = { CACHE: mockR2 as any, ASSETS: mockAssets, FREESOUND_API_KEY: 'test', XENOCANTO_API_KEY: 'test' };
+  const mockEnv = { CACHE: mockR2 as any, UPLOADS: mockR2 as any, ASSETS: mockAssets, FREESOUND_API_KEY: 'test', XENOCANTO_API_KEY: 'test', OWNER_TOKEN: 'test-tok' };
 
   it('GET /api returns API info', async () => {
     const router = createRouter();
@@ -57,5 +57,37 @@ describe('Router', () => {
     const res = await router.fetch(new Request('http://localhost/'), mockEnv);
     expect(res.status).toBe(200);
     expect(mockAssets.fetch).toHaveBeenCalled();
+  });
+
+  it('GET /user/favorites without auth returns 401', async () => {
+    const router = createRouter();
+    const res = await router.fetch(new Request('http://localhost/user/favorites'), mockEnv);
+    expect(res.status).toBe(401);
+  });
+
+  it('GET /user/favorites with valid bearer returns empty file', async () => {
+    const router = createRouter();
+    const env = { ...mockEnv, OWNER_TOKEN: 'tok', UPLOADS: {
+      get: vi.fn().mockResolvedValue(null),
+      put: vi.fn().mockResolvedValue(undefined),
+      delete: vi.fn().mockResolvedValue(undefined),
+      list: vi.fn().mockResolvedValue({ objects: [] }),
+    }} as any;
+    const res = await router.fetch(new Request('http://localhost/user/favorites', {
+      headers: { Authorization: 'Bearer tok' },
+    }), env);
+    expect(res.status).toBe(200);
+    const body = await res.json() as any;
+    expect(body.favorites).toEqual([]);
+  });
+
+  it('GET /sets/public/:slug returns 404 when missing', async () => {
+    const router = createRouter();
+    const env = { ...mockEnv, UPLOADS: {
+      get: vi.fn().mockResolvedValue(null),
+      list: vi.fn().mockResolvedValue({ objects: [] }),
+    }} as any;
+    const res = await router.fetch(new Request('http://localhost/sets/public/missing'), env);
+    expect(res.status).toBe(404);
   });
 });
