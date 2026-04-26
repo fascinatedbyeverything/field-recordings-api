@@ -16,6 +16,10 @@ import { BirdWeatherProvider } from './providers/birdweather';
 import { searchAll } from './search';
 import { streamRecording } from './stream';
 import { CacheLayer } from './cache';
+import { requireBearer, ownerIdFor } from './auth';
+import { getFavorites, upsertFavorite, removeFavorite } from './user/favorites';
+import { listSets, getSet, upsertSet, deleteSet, publishSet, unpublishSet, getPublicSet } from './user/sets';
+import type { Favorite, FieldSet } from './types';
 
 function buildProviders(env: Env): Provider[] {
   return [
@@ -47,7 +51,12 @@ export function createRouter() {
     json({
       name: 'Field Recordings API',
       version: '0.1.0',
-      endpoints: ['/search', '/stream/:provider/:id', '/providers', '/categories'],
+      endpoints: [
+        '/search', '/stream/:provider/:id', '/providers', '/categories',
+        '/upload', '/my-recordings',
+        '/user/favorites', '/user/sets', '/user/sets/:id', '/user/sets/:id/publish',
+        '/sets/public/:slug',
+      ],
     })
   );
 
@@ -231,6 +240,100 @@ export function createRouter() {
       deleted++;
     }
     return json({ ok: true, deleted });
+  });
+
+  // ===== User favorites (auth-gated) =====
+  router.get('/user/favorites', async (request: Request, env: Env) => {
+    const denial = await requireBearer(request, env);
+    if (denial) return denial;
+    const ownerId = await ownerIdFor(request, env);
+    return json(await getFavorites(env.UPLOADS, ownerId));
+  });
+
+  router.post('/user/favorites', async (request: Request, env: Env) => {
+    const denial = await requireBearer(request, env);
+    if (denial) return denial;
+    const ownerId = await ownerIdFor(request, env);
+    const fav = (await request.json()) as Favorite;
+    if (!fav?.fav_id || !fav?.recording) return error(400, 'fav_id and recording required');
+    await upsertFavorite(env.UPLOADS, ownerId, fav);
+    return json({ ok: true });
+  });
+
+  router.delete('/user/favorites/:favId', async (request: Request, env: Env) => {
+    const denial = await requireBearer(request, env);
+    if (denial) return denial;
+    const ownerId = await ownerIdFor(request, env);
+    const { favId } = (request as any).params;
+    await removeFavorite(env.UPLOADS, ownerId, favId);
+    return json({ ok: true });
+  });
+
+  // ===== User sets (auth-gated) =====
+  router.get('/user/sets', async (request: Request, env: Env) => {
+    const denial = await requireBearer(request, env);
+    if (denial) return denial;
+    const ownerId = await ownerIdFor(request, env);
+    return json({ sets: await listSets(env.UPLOADS, ownerId) });
+  });
+
+  router.get('/user/sets/:setId', async (request: Request, env: Env) => {
+    const denial = await requireBearer(request, env);
+    if (denial) return denial;
+    const ownerId = await ownerIdFor(request, env);
+    const { setId } = (request as any).params;
+    const set = await getSet(env.UPLOADS, ownerId, setId);
+    if (!set) return error(404, 'Set not found');
+    return json(set);
+  });
+
+  router.post('/user/sets', async (request: Request, env: Env) => {
+    const denial = await requireBearer(request, env);
+    if (denial) return denial;
+    const ownerId = await ownerIdFor(request, env);
+    const set = (await request.json()) as FieldSet;
+    if (!set?.set_id || !set?.slug) return error(400, 'set_id and slug required');
+    set.owner_id = ownerId;
+    set.version = 1;
+    await upsertSet(env.UPLOADS, ownerId, set);
+    return json({ ok: true, set_id: set.set_id });
+  });
+
+  router.delete('/user/sets/:setId', async (request: Request, env: Env) => {
+    const denial = await requireBearer(request, env);
+    if (denial) return denial;
+    const ownerId = await ownerIdFor(request, env);
+    const { setId } = (request as any).params;
+    await deleteSet(env.UPLOADS, ownerId, setId);
+    return json({ ok: true });
+  });
+
+  router.post('/user/sets/:setId/publish', async (request: Request, env: Env) => {
+    const denial = await requireBearer(request, env);
+    if (denial) return denial;
+    const ownerId = await ownerIdFor(request, env);
+    const { setId } = (request as any).params;
+    const set = await publishSet(env.UPLOADS, ownerId, setId);
+    if (!set) return error(404, 'Set not found');
+    return json({ ok: true, slug: set.slug, public_url: `/sets/public/${set.slug}` });
+  });
+
+  router.delete('/user/sets/:setId/publish', async (request: Request, env: Env) => {
+    const denial = await requireBearer(request, env);
+    if (denial) return denial;
+    const ownerId = await ownerIdFor(request, env);
+    const { setId } = (request as any).params;
+    const set = await unpublishSet(env.UPLOADS, ownerId, setId);
+    if (!set) return error(404, 'Set not found');
+    return json({ ok: true });
+  });
+
+  // ===== Public sets (no auth) =====
+  router.get('/sets/public/:slug', async (request: Request, env: Env) => {
+    const { slug } = (request as any).params;
+    const set = await getPublicSet(env.UPLOADS, slug);
+    if (!set) return error(404, 'Public set not found');
+    return json(set);
   });
 
   router.all('*', (request: Request, env: Env) => env.ASSETS.fetch(request));
