@@ -10,6 +10,47 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function hasWholeWord(text: string, word: string): boolean {
+  if (!word) return false;
+  return new RegExp(`\\b${escapeRegex(word)}\\b`, 'i').test(text);
+}
+
+function relevanceScore(
+  r: import('./types').Recording,
+  tokens: string[],
+  phrase: string,
+): number {
+  if (tokens.length === 0) return 0;
+  let score = 0;
+  const titleLower = r.title.toLowerCase();
+  const speciesLower = (r.species ?? '').toLowerCase();
+  const tagsLower = r.tags.map((t) => t.toLowerCase());
+
+  if (speciesLower) {
+    if (tokens.every((t) => hasWholeWord(speciesLower, t))) score += 100;
+    else if (tokens.some((t) => hasWholeWord(speciesLower, t))) score += 50;
+  }
+
+  if (titleLower) {
+    if (phrase && titleLower.includes(phrase) && phrase.includes(' ')) score += 60;
+    if (tokens.every((t) => hasWholeWord(titleLower, t))) score += 40;
+    else {
+      const wordHits = tokens.filter((t) => hasWholeWord(titleLower, t)).length;
+      score += wordHits * 10;
+    }
+  }
+
+  for (const t of tokens) {
+    if (tagsLower.some((tag) => hasWholeWord(tag, t))) score += 15;
+  }
+
+  return score;
+}
+
 // Hard safety limit to prevent runaway pagination (Workers have 30s CPU limit)
 const ABSOLUTE_MAX = 10000;
 const DELAY_MS = 200; // delay between pages to avoid rate limits
@@ -88,15 +129,27 @@ export async function searchAll(
     );
   }
 
-  // Sort: longest first by default, or by date
-  if (query.sort === 'date') {
+  // Default sort: relevance when q is non-empty, duration otherwise.
+  // Explicit sort param always wins.
+  const effectiveSort =
+    query.sort ?? (query.q && query.q.trim() ? 'relevance' : 'duration');
+
+  if (effectiveSort === 'date') {
     filtered.sort((a, b) => {
       if (!a.recorded_at) return 1;
       if (!b.recorded_at) return -1;
       return b.recorded_at.localeCompare(a.recorded_at);
     });
+  } else if (effectiveSort === 'relevance') {
+    const tokens = (query.q ?? '').toLowerCase().split(/\s+/).filter((t) => t.length >= 2);
+    const phrase = (query.q ?? '').toLowerCase().trim();
+    const scored = filtered.map((r) => ({ r, score: relevanceScore(r, tokens, phrase) }));
+    scored.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return (b.r.duration_sec ?? 0) - (a.r.duration_sec ?? 0);
+    });
+    filtered = scored.map((s) => s.r);
   } else {
-    // Default: longest recordings first (ambient-friendly)
     filtered.sort((a, b) => (b.duration_sec ?? 0) - (a.duration_sec ?? 0));
   }
 

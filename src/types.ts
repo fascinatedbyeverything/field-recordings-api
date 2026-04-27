@@ -24,7 +24,7 @@ export interface UnifiedQuery {
   page?: number;
   per_page?: number;
   min_duration?: number;
-  sort?: 'duration' | 'date';
+  sort?: 'duration' | 'date' | 'relevance';
 }
 
 export interface SearchResult {

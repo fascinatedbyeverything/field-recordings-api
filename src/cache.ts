@@ -1,6 +1,8 @@
 import type { SearchResult } from './types';
 
 const SEARCH_TTL_MS = 24 * 60 * 60 * 1000;
+// Bump this when search ranking/filtering logic changes, to invalidate stale cached results.
+const CACHE_VERSION = 'v2';
 
 export class CacheLayer {
   private r2: R2Bucket;
@@ -11,7 +13,7 @@ export class CacheLayer {
 
   async getSearch(queryHash: string): Promise<SearchResult | null> {
     try {
-      const obj = await this.r2.get(`search/${queryHash}`);
+      const obj = await this.r2.get(`search/${CACHE_VERSION}/${queryHash}`);
       if (!obj) return null;
       const expires = Number(obj.customMetadata?.expires ?? 0);
       if (Date.now() > expires) return null;
@@ -23,7 +25,7 @@ export class CacheLayer {
 
   async putSearch(queryHash: string, data: SearchResult): Promise<void> {
     try {
-      await this.r2.put(`search/${queryHash}`, JSON.stringify(data), {
+      await this.r2.put(`search/${CACHE_VERSION}/${queryHash}`, JSON.stringify(data), {
         customMetadata: { expires: String(Date.now() + SEARCH_TTL_MS) },
       });
     } catch {
