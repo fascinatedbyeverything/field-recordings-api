@@ -19,7 +19,8 @@ import { CacheLayer } from './cache';
 import { requireBearer, ownerIdFor } from './auth';
 import { getFavorites, upsertFavorite, removeFavorite } from './user/favorites';
 import { listSets, getSet, upsertSet, deleteSet, publishSet, unpublishSet, getPublicSet } from './user/sets';
-import type { Favorite, FieldSet } from './types';
+import { importRecording } from './user/import';
+import type { Favorite, FieldSet, Recording } from './types';
 
 function buildProviders(env: Env): Provider[] {
   return [
@@ -267,6 +268,38 @@ export function createRouter() {
     const { favId } = (request as any).params;
     await removeFavorite(env.UPLOADS, ownerId, favId);
     return json({ ok: true });
+  });
+
+  /**
+   * Star → import: client posts the AAC-m4a-transcoded audio + a Recording snapshot.
+   * Worker streams the audio into UPLOADS and writes a UserRecordingMeta so the
+   * UserProvider auto-surfaces it in subsequent searches. Idempotent — re-stars
+   * of the same recording.id return deduped:true without re-uploading.
+   */
+  router.post('/user/favorites/import', async (request: Request, env: Env) => {
+    const denial = await requireBearer(request, env);
+    if (denial) return denial;
+
+    let form: FormData;
+    try { form = await request.formData(); }
+    catch { return error(400, 'multipart form-data required'); }
+
+    const audio = form.get('audio') as File | null;
+    const recordingJson = form.get('recording') as string | null;
+    if (!audio) return error(400, 'audio field required');
+    if (!recordingJson) return error(400, 'recording field required');
+
+    let recording: Recording;
+    try { recording = JSON.parse(recordingJson); }
+    catch { return error(400, 'recording must be valid JSON'); }
+    if (!recording.id || !recording.provider) return error(400, 'recording.id and recording.provider required');
+
+    try {
+      const result = await importRecording(env.UPLOADS, recording, audio.stream(), audio.size);
+      return json(result);
+    } catch (e: any) {
+      return error(500, `Import failed: ${e.message}`);
+    }
   });
 
   // ===== User sets (auth-gated) =====
