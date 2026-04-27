@@ -80,6 +80,7 @@ export interface Favorite {
   set_ids: string[];              // sets this fav belongs to (denormalised; sets are source of truth)
   saved_at: string;               // ISO 8601
   notes: string;
+  object_number?: number | null;  // Atmos object slot, captured at scene save (v2+)
 }
 
 /** A named collection of favorites + their cue settings. */
@@ -103,6 +104,7 @@ export interface SetEntry {
   sum_to_mono: boolean;
   gain_db: number;
   notes: string;
+  object_number?: number | null;  // Atmos object slot the entry was assigned to (v2+)
 }
 
 /** Wrapper persisted at favorites/<ownerId>.json */
