@@ -8,47 +8,76 @@ export class INaturalistProvider extends BaseProvider {
   private baseUrl = 'https://api.inaturalist.org/v1/observations';
 
   async search(query: UnifiedQuery): Promise<Recording[]> {
-    const params = new URLSearchParams({
-      sounds: 'true',
-      per_page: String(Math.min(query.per_page ?? 200, 200)),
-      page: String(query.page ?? 1),
-      order_by: 'id',
-      order: 'desc',
-    });
+    // 2026-05-25: iNat's free-text q= search misses observations where the
+    // query is a species name (e.g. "BENGAL TIGER" hits 13 vs taxon_name=
+    // "Panthera tigris" which hits 20). Run BOTH queries on page 1 and merge
+    // by observation id to surface everything. On later pages, free-text is
+    // primary (taxon_name doesn't paginate the same way).
+    const page = query.page ?? 1;
+    const perPage = Math.min(query.per_page ?? 200, 200);
 
-    if (query.q) params.set('q', query.q);
-    if (query.type) params.set('iconic_taxa', this.mapType(query.type));
-    if (query.lat !== undefined) params.set('lat', String(query.lat));
-    if (query.lng !== undefined) params.set('lng', String(query.lng));
-    if (query.radius_km !== undefined) params.set('radius', String(query.radius_km));
-    if (query.license) params.set('license', query.license);
+    const baseParams = (): URLSearchParams => {
+      const p = new URLSearchParams({
+        sounds: 'true',
+        per_page: String(perPage),
+        page: String(page),
+        order_by: 'id',
+        order: 'desc',
+      });
+      if (query.type) p.set('iconic_taxa', this.mapType(query.type));
+      if (query.lat !== undefined) p.set('lat', String(query.lat));
+      if (query.lng !== undefined) p.set('lng', String(query.lng));
+      if (query.radius_km !== undefined) p.set('radius', String(query.radius_km));
+      if (query.license) p.set('license', query.license);
+      return p;
+    };
 
-    const url = `${this.baseUrl}?${params}`;
+    const urls: string[] = [];
+    if (query.q) {
+      const textParams = baseParams();
+      textParams.set('q', query.q);
+      urls.push(`${this.baseUrl}?${textParams}`);
+      // Also try as a taxon_name lookup on page 1 — catches species queries
+      // that iNat's text search misses (their free-text doesn't always tag
+      // common-name → species).
+      if (page === 1) {
+        const taxonParams = baseParams();
+        taxonParams.set('taxon_name', query.q);
+        urls.push(`${this.baseUrl}?${taxonParams}`);
+      }
+    } else {
+      urls.push(`${this.baseUrl}?${baseParams()}`);
+    }
 
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const res = await fetch(url, {
-          headers: { 'User-Agent': 'FieldRecordingsAPI/1.0' },
-        });
-        if (res.status === 429) {
-          // Rate limited — wait and retry
-          await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
-          continue;
+    const allObs = new Map<number, INatObservation>();
+    for (const url of urls) {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const res = await fetch(url, {
+            headers: { 'User-Agent': 'FieldRecordingsAPI/1.0' },
+          });
+          if (res.status === 429) {
+            await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+            continue;
+          }
+          if (!res.ok) {
+            console.error(`iNaturalist ${res.status} for ${url}`);
+            break;
+          }
+          const data = await res.json() as INatResponse;
+          for (const obs of data.results) {
+            if (obs.sounds && obs.sounds.length > 0 && !allObs.has(obs.id)) {
+              allObs.set(obs.id, obs);
+            }
+          }
+          break;
+        } catch (e) {
+          console.error('iNaturalist error:', e);
+          break;
         }
-        if (!res.ok) {
-          console.error(`iNaturalist ${res.status}`);
-          return [];
-        }
-        const data = await res.json() as INatResponse;
-        return data.results
-          .filter((obs) => obs.sounds && obs.sounds.length > 0)
-          .map((obs) => this.normalize(obs));
-      } catch (e) {
-        console.error('iNaturalist error:', e);
-        return [];
       }
     }
-    return [];
+    return [...allObs.values()].map((obs) => this.normalize(obs));
   }
 
   async getRecording(id: string): Promise<Recording | null> {

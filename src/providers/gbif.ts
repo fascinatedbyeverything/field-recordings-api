@@ -7,6 +7,13 @@ export class GBIFProvider extends BaseProvider {
 
   private baseUrl = 'https://api.gbif.org/v1/occurrence';
 
+  // 2026-05-25: per-query taxonKey cache. resolveTaxon makes an extra HTTP
+  // round-trip to GBIF's species/search endpoint, and fetchAllPages was
+  // calling search() once per page — so we'd re-resolve the same taxon up
+  // to 10 times per user query, with each call adding failure surface. Now
+  // resolved once on page 1, reused on subsequent pages.
+  private taxonCache = new Map<string, number | null>();
+
   async search(query: UnifiedQuery): Promise<Recording[]> {
     const params = new URLSearchParams({
       mediaType: 'Sound',
@@ -15,12 +22,27 @@ export class GBIFProvider extends BaseProvider {
     });
 
     if (query.q) {
-      // Try to resolve as species/taxon for precise results
-      const taxonKey = await this.resolveTaxon(query.q);
+      const cacheKey = query.q.toLowerCase().trim();
+      let taxonKey: number | null;
+      if (this.taxonCache.has(cacheKey)) {
+        taxonKey = this.taxonCache.get(cacheKey)!;
+      } else {
+        taxonKey = await this.resolveTaxon(query.q);
+        this.taxonCache.set(cacheKey, taxonKey);
+      }
+
       if (taxonKey) {
+        // Use precise taxon match — returns only that species' occurrences.
         params.set('taxonKey', String(taxonKey));
       } else {
-        params.set('q', query.q);
+        // 2026-05-25: NO fallback to free-text q=. GBIF's free-text matches
+        // any field (locality, scientific name fragment, etc.) and returns
+        // hundreds of irrelevant species observed in regions matching the
+        // query tokens. E.g. "BENGAL TIGER" with q= surfaces Cuculus
+        // sparverioides (observed in Bengal region) + Lanius tigrinus (Tiger
+        // Shrike — different bird that just shares the "tigr" stem). Better
+        // to return empty than to flood with wrong-species noise.
+        return [];
       }
     }
 
