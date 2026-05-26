@@ -124,7 +124,18 @@ export function createRouter() {
     const providers = buildProviders(env);
     const result = await searchAll(providers, query);
 
-    await cache.putSearch(cacheKey, result);
+    // 2026-05-25: don't poison the cache with degraded responses. If any
+    // provider FAILED outright OR if a query with q= came back with fewer
+    // than 5 results total (suggesting a transient upstream miss), skip
+    // caching so the next request gets a fresh fan-out. Prevents the
+    // pattern where one cold-cache run with iNat/freesound transient
+    // failure cached an empty-iNat response for 24 hours.
+    const isDegraded =
+      result.providers_failed.length > 0 ||
+      (query.q !== undefined && query.q.trim().length > 0 && result.total < 5);
+    if (!isDegraded) {
+      await cache.putSearch(cacheKey, result);
+    }
     return json(result);
   });
 

@@ -9,10 +9,15 @@ export class INaturalistProvider extends BaseProvider {
 
   async search(query: UnifiedQuery): Promise<Recording[]> {
     // 2026-05-25: iNat's free-text q= search misses observations where the
-    // query is a species name (e.g. "BENGAL TIGER" hits 13 vs taxon_name=
-    // "Panthera tigris" which hits 20). Run BOTH queries on page 1 and merge
-    // by observation id to surface everything. On later pages, free-text is
-    // primary (taxon_name doesn't paginate the same way).
+    // query is a species name (e.g. "BENGAL TIGER" hits 11-13 via q=, 11
+    // via taxon_name=, but their union has more). Strategy:
+    //   1. Try q= (free-text) first
+    //   2. If q= returned >0 results, also fetch taxon_name= on page 1
+    //      to catch additional species matches and merge
+    //   3. If q= returned 0, fall back to taxon_name= only
+    // This keeps the common case fast (single fetch) while filling the gap
+    // for species queries. Avoids double-fetch overhead that was contributing
+    // to Worker subrequest budget exhaustion in cold-cache runs.
     const page = query.page ?? 1;
     const perPage = Math.min(query.per_page ?? 200, 200);
 
@@ -32,25 +37,7 @@ export class INaturalistProvider extends BaseProvider {
       return p;
     };
 
-    const urls: string[] = [];
-    if (query.q) {
-      const textParams = baseParams();
-      textParams.set('q', query.q);
-      urls.push(`${this.baseUrl}?${textParams}`);
-      // Also try as a taxon_name lookup on page 1 — catches species queries
-      // that iNat's text search misses (their free-text doesn't always tag
-      // common-name → species).
-      if (page === 1) {
-        const taxonParams = baseParams();
-        taxonParams.set('taxon_name', query.q);
-        urls.push(`${this.baseUrl}?${taxonParams}`);
-      }
-    } else {
-      urls.push(`${this.baseUrl}?${baseParams()}`);
-    }
-
-    const allObs = new Map<number, INatObservation>();
-    for (const url of urls) {
+    const fetchPage = async (url: string): Promise<INatObservation[]> => {
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           const res = await fetch(url, {
@@ -62,21 +49,46 @@ export class INaturalistProvider extends BaseProvider {
           }
           if (!res.ok) {
             console.error(`iNaturalist ${res.status} for ${url}`);
-            break;
+            return [];
           }
           const data = await res.json() as INatResponse;
-          for (const obs of data.results) {
-            if (obs.sounds && obs.sounds.length > 0 && !allObs.has(obs.id)) {
-              allObs.set(obs.id, obs);
-            }
-          }
-          break;
+          return (data.results ?? []).filter((obs) => obs.sounds && obs.sounds.length > 0);
         } catch (e) {
           console.error('iNaturalist error:', e);
-          break;
+          return [];
         }
       }
+      return [];
+    };
+
+    const allObs = new Map<number, INatObservation>();
+
+    if (query.q) {
+      const textParams = baseParams();
+      textParams.set('q', query.q);
+      const urls: string[] = [`${this.baseUrl}?${textParams}`];
+
+      // On page 1: also try taxon_name= to catch species queries that
+      // free-text misses. Run in parallel with q= to avoid serial latency.
+      if (page === 1) {
+        const taxonParams = baseParams();
+        taxonParams.set('taxon_name', query.q);
+        urls.push(`${this.baseUrl}?${taxonParams}`);
+      }
+
+      const allResults = await Promise.all(urls.map((u) => fetchPage(u)));
+      for (const batch of allResults) {
+        for (const obs of batch) {
+          if (!allObs.has(obs.id)) allObs.set(obs.id, obs);
+        }
+      }
+    } else {
+      const hits = await fetchPage(`${this.baseUrl}?${baseParams()}`);
+      for (const obs of hits) {
+        if (!allObs.has(obs.id)) allObs.set(obs.id, obs);
+      }
     }
+
     return [...allObs.values()].map((obs) => this.normalize(obs));
   }
 

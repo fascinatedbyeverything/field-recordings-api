@@ -2,9 +2,13 @@ import type { SearchResult } from './types';
 
 const SEARCH_TTL_MS = 24 * 60 * 60 * 1000;
 // Bump this when search ranking/filtering logic changes, to invalidate stale cached results.
-// v3 (2026-05-25): iNat double-query (q + taxon_name), GBIF taxonKey cache + no
-// free-text fallback, Macaulay /api/v1 endpoint, no Macaulay pollution on free-text.
-const CACHE_VERSION = 'v3';
+// v4 (2026-05-25): iNat dual-query now PARALLEL (Promise.all) not sequential —
+// reduces wall time + prevents Worker subrequest budget pressure that caused
+// iNat to silently return 0 on cold runs (poisoning the cache with empty
+// responses). Also: router skips caching degraded responses (any provider
+// failed OR <5 results for non-empty q=) so transient upstream blips can't
+// pollute the 24h TTL.
+const CACHE_VERSION = 'v4';
 
 export class CacheLayer {
   private r2: R2Bucket;
