@@ -2,13 +2,11 @@ import type { SearchResult } from './types';
 
 const SEARCH_TTL_MS = 24 * 60 * 60 * 1000;
 // Bump this when search ranking/filtering logic changes, to invalidate stale cached results.
-// v4 (2026-05-25): iNat dual-query now PARALLEL (Promise.all) not sequential —
-// reduces wall time + prevents Worker subrequest budget pressure that caused
-// iNat to silently return 0 on cold runs (poisoning the cache with empty
-// responses). Also: router skips caching degraded responses (any provider
-// failed OR <5 results for non-empty q=) so transient upstream blips can't
-// pollute the 24h TTL.
-const CACHE_VERSION = 'v4';
+// v9 (2026-05-26): iNat simplified — dropped /v1/taxa resolver to reduce
+// subrequest count under unified search load (was zeroing iNat in parallel
+// fan-out). Now: taxon_name=<query> primary, q=<query> fallback only if
+// taxon_name returned <5 hits. Max 2 subrequests per page.
+const CACHE_VERSION = 'v9';
 
 export class CacheLayer {
   private r2: R2Bucket;

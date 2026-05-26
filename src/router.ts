@@ -95,8 +95,16 @@ export function createRouter() {
       return error(400, 'Provide q (search term) or lat/lng (location)');
     }
 
+    // 2026-05-26: normalize query case before downstream use. Upstream
+    // providers vary in case sensitivity (iNat's text search returns
+    // different counts for "BENGAL TIGER" vs "bengal tiger"), and the
+    // cache key would otherwise split per case — meaning the same query
+    // typed differently caches separate (and often inconsistent) results.
+    // Lowercase here, once, for both providers and cache.
+    const qNormalized = q ? q.trim().toLowerCase() : undefined;
+
     const query: UnifiedQuery = {
-      q: q ?? undefined,
+      q: qNormalized,
       lat: lat ? Number(lat) : undefined,
       lng: url.searchParams.has('lng') ? Number(url.searchParams.get('lng')) : undefined,
       radius_km: url.searchParams.has('radius_km')
@@ -116,6 +124,9 @@ export function createRouter() {
     const cache = new CacheLayer(env.CACHE);
     const params: Record<string, string> = {};
     url.searchParams.forEach((v, k) => { params[k] = v; });
+    // Use the normalized q for cache hashing so all case variants share one
+    // entry. Without this, BENGAL TIGER and bengal tiger cached separately.
+    if (qNormalized !== undefined) params.q = qNormalized;
     const cacheKey = cache.hashQuery(params);
 
     const cached = await cache.getSearch(cacheKey);

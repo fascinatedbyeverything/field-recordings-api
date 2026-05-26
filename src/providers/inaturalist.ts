@@ -6,6 +6,43 @@ export class INaturalistProvider extends BaseProvider {
   rateLimit = { requests: 100, window_ms: 60000 };
 
   private baseUrl = 'https://api.inaturalist.org/v1/observations';
+  private taxaUrl = 'https://api.inaturalist.org/v1/taxa';
+
+  // Per-query cache for common-name → scientific-name resolution
+  private sciNameCache = new Map<string, string | null>();
+
+  private async resolveScientificName(q: string): Promise<string | null> {
+    const key = q.toLowerCase().trim();
+    if (this.sciNameCache.has(key)) return this.sciNameCache.get(key)!;
+    try {
+      const res = await fetch(
+        `${this.taxaUrl}?q=${encodeURIComponent(q)}&per_page=1`,
+        { headers: { 'User-Agent': 'FieldRecordingsAPI/1.0' } },
+      );
+      if (!res.ok) {
+        this.sciNameCache.set(key, null);
+        return null;
+      }
+      const data = await res.json() as { results: Array<{ name?: string; rank?: string }> };
+      const first = data.results?.[0];
+      if (!first?.name) {
+        this.sciNameCache.set(key, null);
+        return null;
+      }
+      // Prefer species-level scientific name. If subspecies, drop trailing
+      // word to get parent species (broader observations pool).
+      let sci = first.name;
+      if (first.rank === 'subspecies') {
+        const parts = sci.split(/\s+/);
+        if (parts.length >= 2) sci = parts.slice(0, 2).join(' ');
+      }
+      this.sciNameCache.set(key, sci);
+      return sci;
+    } catch {
+      this.sciNameCache.set(key, null);
+      return null;
+    }
+  }
 
   async search(query: UnifiedQuery): Promise<Recording[]> {
     // 2026-05-25: iNat's free-text q= search misses observations where the
@@ -64,21 +101,27 @@ export class INaturalistProvider extends BaseProvider {
     const allObs = new Map<number, INatObservation>();
 
     if (query.q) {
-      const textParams = baseParams();
-      textParams.set('q', query.q);
-      const urls: string[] = [`${this.baseUrl}?${textParams}`];
-
-      // On page 1: also try taxon_name= to catch species queries that
-      // free-text misses. Run in parallel with q= to avoid serial latency.
-      if (page === 1) {
-        const taxonParams = baseParams();
-        taxonParams.set('taxon_name', query.q);
-        urls.push(`${this.baseUrl}?${taxonParams}`);
+      // 2026-05-26: simplified to minimize subrequest count. Earlier versions
+      // ran a separate /v1/taxa resolver call up-front to get the scientific
+      // name. Under unified search load (12 providers in parallel), that
+      // extra subrequest pushed iNat past Cloudflare's per-request subrequest
+      // budget on free plan and iNat silently returned 0. Now: try
+      // taxon_name=<user query> first (handles common names AND scientific
+      // names — iNat resolves both); if that returns <5 hits, also do q=
+      // free-text. Max 2 subrequests per page. iNat's taxon_name matcher is
+      // permissive enough that "bengal tiger" still returns 11+ and the q=
+      // fallback adds whatever free-text uniquely surfaces.
+      const taxonParams = baseParams();
+      taxonParams.set('taxon_name', query.q);
+      const taxonHits = await fetchPage(`${this.baseUrl}?${taxonParams}`);
+      for (const obs of taxonHits) {
+        if (!allObs.has(obs.id)) allObs.set(obs.id, obs);
       }
-
-      const allResults = await Promise.all(urls.map((u) => fetchPage(u)));
-      for (const batch of allResults) {
-        for (const obs of batch) {
+      if (allObs.size < 5) {
+        const textParams = baseParams();
+        textParams.set('q', query.q);
+        const textHits = await fetchPage(`${this.baseUrl}?${textParams}`);
+        for (const obs of textHits) {
           if (!allObs.has(obs.id)) allObs.set(obs.id, obs);
         }
       }
