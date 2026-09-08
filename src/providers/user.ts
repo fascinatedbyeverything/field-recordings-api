@@ -1,5 +1,6 @@
 import { BaseProvider } from './base';
 import type { UnifiedQuery, Recording, UserRecordingMeta } from '../types';
+import { getAllMeta } from '../user/metaIndex';
 
 /** Provider for user-uploaded recordings stored in R2 */
 export class UserProvider extends BaseProvider {
@@ -14,18 +15,9 @@ export class UserProvider extends BaseProvider {
   }
 
   async search(query: UnifiedQuery): Promise<Recording[]> {
-    // List all metadata files from R2
-    const listed = await this.bucket.list({ prefix: 'meta/' });
-    const metas: UserRecordingMeta[] = [];
-
-    for (const obj of listed.objects) {
-      const data = await this.bucket.get(obj.key);
-      if (!data) continue;
-      try {
-        const meta = JSON.parse(await data.text()) as UserRecordingMeta;
-        metas.push(meta);
-      } catch { /* skip corrupt */ }
-    }
+    // 2026-09-07: one indexed read instead of a serial get per meta object
+    // (was 47 s for 556 recordings — the whole cold-search latency).
+    const metas: UserRecordingMeta[] = await getAllMeta(this.bucket);
 
     let results = metas.map((m) => this.normalize(m));
 

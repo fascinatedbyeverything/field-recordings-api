@@ -1,4 +1,5 @@
 import type { Recording, UserRecordingMeta } from '../types';
+import { invalidateMetaIndex } from './metaIndex';
 
 const MAX_BYTES = 200 * 1024 * 1024; // 200 MB
 
@@ -66,6 +67,7 @@ export async function importRecording(
   await bucket.put(metaKey, JSON.stringify(meta), {
     httpMetadata: { contentType: 'application/json' },
   });
+  await invalidateMetaIndex(bucket);
 
   return { ok: true, id, audio_key: audioKey, meta_key: metaKey, deduped: false };
 }

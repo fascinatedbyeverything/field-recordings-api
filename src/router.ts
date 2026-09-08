@@ -20,6 +20,7 @@ import { requireBearer, ownerIdFor } from './auth';
 import { getFavorites, upsertFavorite, removeFavorite } from './user/favorites';
 import { listSets, getSet, upsertSet, deleteSet, publishSet, unpublishSet, getPublicSet } from './user/sets';
 import { importRecording } from './user/import';
+import { getAllMeta, invalidateMetaIndex } from './user/metaIndex';
 import type { Favorite, FieldSet, Recording } from './types';
 
 function buildProviders(env: Env): Provider[] {
@@ -219,6 +220,7 @@ export function createRouter() {
       await env.UPLOADS.put(`meta/${id}.json`, JSON.stringify(meta), {
         httpMetadata: { contentType: 'application/json' },
       });
+      await invalidateMetaIndex(env.UPLOADS);
 
       return json({ ok: true, id, recording: meta });
     } catch (e: any) {
@@ -228,18 +230,10 @@ export function createRouter() {
 
   // List user recordings
   router.get('/my-recordings', async (request: Request, env: Env) => {
-    const listed = await env.UPLOADS.list({ prefix: 'meta/' });
-    const recordings: UserRecordingMeta[] = [];
+    // 2026-09-07: indexed read (was 48 s of serial R2 gets — see user/metaIndex.ts).
+    const recordings: UserRecordingMeta[] = [...(await getAllMeta(env.UPLOADS))];
 
-    for (const obj of listed.objects) {
-      const data = await env.UPLOADS.get(obj.key);
-      if (!data) continue;
-      try {
-        recordings.push(JSON.parse(await data.text()));
-      } catch { /* skip */ }
-    }
-
-    recordings.sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at));
+    recordings.sort((a, b) => (b.uploaded_at ?? '').localeCompare(a.uploaded_at ?? ''));
     return json({ recordings, total: recordings.length });
   });
 
@@ -252,6 +246,7 @@ export function createRouter() {
     for (const obj of listed.objects) {
       await env.UPLOADS.delete(obj.key);
     }
+    await invalidateMetaIndex(env.UPLOADS);
     return json({ ok: true });
   });
 

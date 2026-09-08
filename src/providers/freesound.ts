@@ -35,14 +35,16 @@ export class FreesoundProvider extends BaseProvider {
 
     const url = `${this.baseUrl}/search/text/?${params}`;
 
-    try {
-      const res = await fetch(url);
-      if (!res.ok) return [];
-      const data = await res.json() as FreesoundSearchResponse;
-      return data.results.map((r) => this.normalize(r));
-    } catch {
-      return [];
-    }
+    // 2026-09-07: a failed Freesound call used to return [] — indistinguishable
+    // from "no results", so `providers_failed` stayed empty and the degraded
+    // response was CACHED for 24 h (freesound.org's TLS certificate expired
+    // 2026-09-07 and every query cached Freesound-less). Let it reject:
+    // searchAll records the provider in providers_failed and the router
+    // skips caching a degraded result.
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`freesound search HTTP ${res.status}`);
+    const data = await res.json() as FreesoundSearchResponse;
+    return data.results.map((r) => this.normalize(r));
   }
 
   async getRecording(id: string): Promise<Recording | null> {

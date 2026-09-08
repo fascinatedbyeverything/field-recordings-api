@@ -84,8 +84,13 @@ describe('FreesoundProvider', () => {
     expect(calledUrl).toContain('geofilt');
   });
 
-  it('handles API errors gracefully', async () => {
+  it('rejects on API errors so searchAll reports the provider as failed', async () => {
     mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
+    await expect(provider.search({ q: 'x' } as any)).rejects.toThrow(/401/);
+  });
+
+  it('returns [] for an empty result set', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ count: 0, results: [] }) });
     const results = await provider.search({ q: 'test' });
     expect(results).toEqual([]);
   });
